@@ -1,0 +1,7 @@
+"Var1"	"Var2"	"Var3"	"Var4"	"Var5"	"suma13"	"logica2"
+"I1"	94	58	84	42	"A"	388	TRUE
+"I2"	99	43	22	19	"B"	345	FALSE
+"I3"	46	43	42	71	"A"	230	FALSE
+"I4"	23	60	42	1	"B"	388	TRUE
+"I5"	70	45	2	73	"A"	345	FALSE
+"I6"	56	96	38	43	"B"	230	TRUE

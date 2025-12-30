@@ -1,0 +1,610 @@
+---
+title: "9no Coloquio Uruguayo de Matemática 2025 Regresion Lineal y Regresión Logística "
+author: "Mathias Bourel, FCEA"
+format: pdf
+toc: true
+toc-depth: 2
+editor: visual
+---
+
+En este material abordaremos conceptos vinculados al análisis de regresión lineal y regresión logistica, es decir, al estudio de la relación entre dos variables continuas (regresión lineal) o una variable continua y una variable de respuesta categorica (regresión logística). El objetivo no es realizar una revisión exhaustiva del tema, sino ofrecer algunas primeras nociones esenciales para construir y trabajar con estos modelos con el programa R.
+
+## 1- Regresión lineal
+
+## 1.1 Primer ejemplo: data set cars
+
+Recordemos que el modelo lineal simple que relaciona dos variables continuas $Y$ y $X$ queda definido por $Y=\beta_0+\beta_1 X+\epsilon$ donde el intercepto $\beta_0$ y la pendiente $\beta_1$ se obtienen por ejemplo por el método de los minimos cuadrados y $\epsilon$ es una variable aleatoria que se identifica con el error considerado
+
+A partir de un conjunto de datos, el objetivo es estimar los valores de $\beta_1$ y $\beta_0$ que mejor representen esta relación lineal.
+
+Vamos a trabajar en este primer ejemplo con el dataset cars. Son **50 observaciones** sobre vehículos, con **dos variables numéricas**: **speed**, la velocidad del auto en *millas por hora* (mph) y **dist**, la distancia de frenado en *pies* (ft), es decir, la distancia que recorre el auto desde que el conductor pisa el freno hasta que el vehículo se detiene por completo.
+
+```{r}
+rm(list=ls())
+head(cars)
+str(cars)
+?cars 
+```
+
+Vemos como varían las variables y obtengamos la recta de regresión lineal con el cálculo de $\beta_0$ y de $\beta_1$ como vimos en las transparencias.
+
+```{r}
+plot(dist ~ speed, data = cars)
+pairs(cars)
+# Estimaciones de los coeficientes b_0 y b_1 de la recta de regresion 
+# y = b_0 + b_1*x usando las formulas
+x <- cars$speed
+y <- cars$dist
+(b1 <- cov(x, y) / var(x))
+(b0 <- mean(y) - b1 * mean(x))
+plot(cars$dist ~ cars$speed)
+abline(a=b0, b=b1, lwd = 3, col = 'green')
+
+```
+
+Veamos que se obtiene lo mismo si hacemos las operaciones matriciales que lleven a las ecuaciones normales:\
+$$y = X\beta + \epsilon, \,\,\,\,\,\beta = \left(\begin{array}{c}\beta_0\\ \beta_1 \end{array}\right) \,\,\Rightarrow (X'X)\beta = X'y$$
+
+```{r}
+
+# Matriz de datos del modelo
+X <- cbind(1, x)
+head(X)
+
+t(X) %*% X # X'X
+length(x); sum(x); sum(x^2); # verificacion
+
+t(X) %*% y # X'y
+sum(y); sum(x * y) # verificacion
+
+# Sistema de ecuaciones normales: (X'X)beta = X'y
+solve(t(X) %*% X, t(X) %*% y)
+b0; b1
+
+```
+
+Verificamos con la función lm de R
+
+```{r}
+# Utilizando la funcion 'lm()'
+?lm # para ver la ayuda
+m1 <- lm(y ~ x)
+m1
+```
+
+Ahora con los mismos datos hagamos una regresion polinomial ajustando un polinomio de grado 2: $$y = \beta_0 + \beta_1x + \beta_2x^2$$
+
+```{r}
+# Matriz de diseño del modelo
+X.2 <- cbind(1, x, 'x^2' = x^2)
+head(X.2)
+
+t(X.2) %*% X.2 # X'X
+length(x); sum(x); sum(x^2); sum(x^3); sum(x^4)
+
+t(X.2) %*% y # X'y
+sum(y); sum(x * y); sum(x^2 * y)
+
+# Resolviendo el sistema de ecuaciones normales:
+solve(t(X.2) %*% X.2, t(X.2) %*% y)
+
+# Usando la funcion 'lm()'
+rpoli2 <- lm(y ~ x + I(x^2))
+# Si se hace lm(y ~ x + x^2), el termino x + x^2 lo entiende solo como x.
+# La solucion es escribir I(x^2), con lo cual evita confundirlos.
+# La otra es crear una columna con los valores x^2 y pedir regresion de y 
+#contra las demas, esto es, y ~ . (el . quiere decir todas las que no son y, ver rpoli2b mas abajo).
+rpoli2
+summary(rpoli2)
+coef(rpoli2)
+plot(cars$dist ~ cars$speed)
+lines(sort(x), rpoli2$fitted.values[order(x)], col = 'orange', lwd = 3)
+# Sin I()
+autos <- cars
+autos <- data.frame(autos, 'speed2'=cars$speed^2)
+rpoli2b <- lm(dist ~ ., data = autos)
+rpoli2b
+rpoli2
+summary(rpoli2b)
+summary(rpoli2)
+```
+
+## 1.2 Segundo Ejemplo con datos simulados
+
+Generemos ahora 50 datos sintéticos donde conocemos la función $f(x)=2+3x$: $$Y=2+3x+\epsilon,\,\,\epsilon \sim \mathcal{N}(0,4)$$
+
+```{r}
+set.seed(5)
+library('ggplot2')
+# Generación de datos
+
+n <- 50
+x <- sort(5 * runif(n))
+y <- 2 + 3 * x + rnorm(n, sd = 2)
+df <- data.frame(x = x, y = y)
+
+fit <- lm(y ~ x)
+
+summary(fit)
+summary(fit)$r.squared #el R^2
+summary(fit)$adj.r.squared #el R^2 ajustado
+summary(fit)$sigma # =raiz{SCR/n-2} el estimador de sigma
+
+
+
+beta_0 <- coef(fit)[1]
+beta_1 <- coef(fit)[2]
+
+df_true <- data.frame(intercept = 2, slope = 3) # Recta verdadera
+df_fit <- data.frame(intercept =beta_0, slope = beta_1) #Recta estimada
+
+# Ecuación para mostrar en el gráfico
+eq_label <- paste0("ŷ = ", round(beta_0, 2), " + ", round(beta_1, 2), "·x")
+
+ggplot(df, aes(x, y)) +
+  geom_point(size = 2) +
+  # Recta verdadera
+  geom_abline(data = df_true,
+              aes(intercept = intercept, slope = slope, color = "Recta verdadera"),
+              linewidth = 1.2) +
+  # Recta ajustada
+  geom_abline(data = df_fit,
+              aes(intercept = intercept, slope = slope, color = "Recta ajustada"),
+              linewidth = 1.2, linetype = "dashed") +
+  
+  scale_color_manual(values = c("Recta verdadera" = "blue",
+                                "Recta ajustada" = "red")) +
+  
+  # Ecuación en el gráfico
+  annotate("text",
+           x = min(df$x) + 0.5,
+           y = max(df$y) - 3,
+           label = eq_label,
+           hjust = 0,
+           size = 5,
+           fontface = "italic") +
+  
+  labs(title = "Datos, recta verdadera y recta ajustada",
+       x = "x",
+       y = "y",
+       color = "Rectas") +
+  theme_minimal(base_size = 14)
+
+
+```
+
+Los intervalos de confianza para los parámetros se obtienen con el comando confint. El parámetro level permite elegir el nivel de confianza del intervalo (por defecto es 0.95):
+
+```{r}
+confint(fit) 
+confint(fit, level = 0.9)
+```
+
+### 
+
+Hagamos predicciones ahora. Dando por válido el modelo ajustado, podemos utilizar la función genérica `predict()` para predecir el valor de nuevas observaciones.
+
+```{r}
+
+# Grilla de predicción (opcional)
+new <- data.frame(x = seq(0, 10, length.out = 50)) #50 puntos nuevos
+predict(fit, newdat=new, interval = "confidence") #la predicción para 
+#cada nuevo x con el intervalo de confianza sobre la media
+predict(fit, newdata = new, interval='prediction') #la predicción de 
+#cada nuevo x con un intervalo de confianza para cada nueva observación.
+
+```
+
+## 1.3 Ejemplo de regresión lineal simple con datos reales
+
+Esta parte está adaptada del muy buen material disponible libremente en <https://rpubs.com/Cristina_Gil/Regresion_Lineal_Simple>
+
+El conjunto de datos `trees` del paquete dplyr contiene los datos sobre la circunferencia (en pulgadas), altura (en pies) y volumen (en pies cúbicos) del tronco de 31 árboles de cerezos.Vamos a ajustar un modelo de regresión lineal simple para predecir el volumen en función del diámetro.
+
+```{r}
+library(dplyr)
+head(trees)
+datos=trees
+summary(datos)
+```
+
+```{r}
+ggplot(data = trees, mapping = aes(x = Girth, y = Volume)) +
+geom_point(color = "firebrick", size = 2) +
+labs(title = "Diagrama de dispersión", x = "Diámetro", y = "Volumen") +
+theme_bw() +
+theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+fit <- lm(Volume ~ Girth, data = trees)
+summary(fit)
+names(fit)
+```
+
+El summary del modelo contiene los errores estándar, el valor del estadístico $t$ y el correspondiente $p$*-valor* de ambos parámetros $\beta_0$ y $\beta_1$. El *p-valor* nos permite determinar si los estimadores de los parámetros son significativamente distintos de 0, es decir, que contribuyen al modelo. El parámetro que suele ser más útil en estos modelos es la pendiente.
+
+Conclusiones:
+
+1.  Tanto la ordenada en el origen como la pendiente son significativas (*p-valor* cercano a 0).
+
+2.  El coeficiente de determinación $R^2$ indica que el modelo es capaz de explicar el 93% de la variabilidad presente en la variable de respuesta (volumen) mediante la variable independiente (diámetro).
+
+3.  El *p-valor* del test $F$ indica que es significativamente superior la varianza explicada por el modelo en comparación con la varianza total, por lo que podemos aceptar nuestro modelo como válido y útil.
+
+4.  La ecuación del modelo es *Volume* = - 36,94 + 5,065*Girth* y podemos interpretar que por cada unidad que se incrementa el diámetro, el volumen aumenta en promedio de 5,065 unidades.
+
+Podemos dibujar la recta de mínimos cuadrados, representar el intervalo de confianza (límites superior e inferior) para cada predicción con la función `geom_smooth( )` de `ggplot2`. Esto permite identificar la región en la que se encuentra el promedio de la variable respuesta según el modelo generado y para un determinado nivel de confianza.
+
+```{r}
+ggplot(data = trees, mapping = aes(x = Girth, y = Volume)) +
+geom_point(color = "firebrick", size = 2) +
+geom_smooth(method = "lm", se = TRUE, color = "black") +
+labs(title = "Volumen ~ Diámetro", x = "Diámetro", y = "Volumen") +
+theme_bw() + theme(plot.title = element_text(hjust = 0.5)) 
+```
+
+ Para evaluar las condiciones que permiten dar como válido el modelo lineal, miramos principalmente del análisis de los residuos y si los residuos no rechazan la hipótesis de normalidad:
+
+```{r}
+par(mfrow=c(1,2))
+plot(fit)
+# Contraste de hipótesis (normalidad de los residuos)
+shapiro.test(fit$residuals)
+```
+
+Veamos ahora las predicciones de nuevas observaciones a partir del modelo. En nuestro ejemplo, podemos predecir el volumen a partir de mediciones del diámetro de nuevos árboles:
+
+``` r
+# Volumen PROMEDIO que esperaríamos de árboles de 15 pulgadas
+predict(fit, data.frame(Girth = 15), interval = "confidence")
+```
+
+``` r
+# Volumen esperado de UN árbol de 15 pulgadas
+predict(modelo.lineal, data.frame(Girth = 15), interval = "prediction")
+```
+
+Observar que el intervalo de predicción es mayor que el de confianza. Podemos interpretar la predicción de la siguiente manera: se espera que en promedio un árbol de diámetro 15 tenga un volumen de 39,04. Podemos afirmar con un 95% de confianza que el verdadero valor promedio se encuentra entre (37,24 – 40.84), mientras que el intervalo de predicción para un solo árbol de este diámetro será de (30,16 – 47, 92).
+
+## 1.4 Ejemplo donde el modelo es globalmente significativo pero cada coeficiente por separado no lo es:
+
+```{r}
+set.seed(123)
+n <- 100
+
+# Aca simulo dos variables fuertemente correlacionadas
+x1 <- rnorm(n)
+x2 <- x1 + rnorm(n, sd = 0.01)   # casi igual a x1
+cor(x1,x2)
+# Variable respuesta como combinación de ambas
+y <- 3*x1 + 3*x2 + rnorm(n)
+
+# Ajustar modelo múltiple
+modelo <- lm(y ~ x1 + x2)
+summary(modelo)
+
+```
+
+El p-valor del test F es nulo mientras que los de los coeficientes por separado es mayor que 0.1. Esto pasa porque el modelo no puede separar el efecto de `x1` del de `x2` ya que son casi la misma variable.
+
+## 1.5 Regresión lineal si la variable es categórica
+
+En $y = \beta_0 + \beta_1 X$, si $X$ es continua
+
+-   $\beta_1$ mide el **cambio promedio en** $y$ cuando $X$ aumenta una unidad.
+-   Se interpreta como una **pendiente**.
+
+$$\beta_1 = \frac{\Delta y}{\Delta X}$$\
+Por ejemplo, si $X$ es la edad (en años) y $\beta_1 = 2$,\
+entonces un año adicional se asocia, en promedio, con un aumento de **2 unidades** en $y$.
+
+Cuando $X$ es categórica (o dummy 0/1), $\beta_1$ representa la **diferencia promedio en (y)** entre dos grupos: la categoría $X = 1$ y la categoría de referencia $X = 0$: $\beta_1 = \mathbb{E}[Y \mid X=1] - \mathbb{E}[Y \mid X=0]$
+
+Por ejemplo, si (X=1) = tratamiento y (X=0) = control,entonces $\beta_1$ es el **efecto promedio del tratamiento**.
+
+## 1.6 Ejemplo con una variable categórica
+
+Vamos a simular un dataset con:
+
+-   `ingresos` (variable respuesta)
+
+-   `sexo` (categórica: Hombre / Mujer)
+
+-   `edad` (numérica)
+
+-   `educacion` (numérica)
+
+Y después ajustamos una regresión múltiple.
+
+```{r}
+set.seed(123)
+n <- 200
+# Variables
+sexo <- factor(sample(c("Hombre", "Mujer"), n, replace = TRUE))
+edad <- rnorm(n, mean = 40, sd = 10)
+educacion <- rnorm(n, mean = 14, sd = 2)
+# Generamos ingresos con efecto verdadero:
+# - Mujeres ganan 2000 menos (ajustado)
+# - Edad aumenta ingresos
+# - Educación también
+ingresos <- 30000 +
+            1500*edad +
+            2500*educacion +
+            ifelse(sexo=="Mujer", -2000, 0) +
+            rnorm(n, sd = 5000)
+
+datos <- data.frame(ingresos, sexo, edad, educacion)
+
+# Modelo múltiple
+modelo <- lm(ingresos ~ sexo + edad + educacion, data = datos)
+summary(modelo)
+
+```
+
+La interpretación es que **una mujer gana, en promedio, 2362 unidades menos que un hombre, manteniendo fija la edad y la educación.** No significa “las mujeres ganan 2000 menos en promedio”, sino “dada la misma edad y el mismo nivel educativo”. El coeficiente de una categoría representa la diferencia en Y entre esa categoría y la referencia, ajustada por el resto de las variables.
+
+## 1.6 Comparación de modelos
+
+```{r}
+set.seed(123)
+
+n <- 300
+
+metros <- rnorm(n, mean = 120, sd = 25)
+habitaciones <- rpois(n, lambda = 3)
+antiguedad <- runif(n, 0, 60)
+
+# variable categórica: barrio
+barrio <- factor(sample(c("Centro", "Norte", "Sur"), n, replace = TRUE))
+
+# Precio "real"
+precio <- 50000 +
+  1100*metros +
+  15000*habitaciones -
+  800*antiguedad +
+  ifelse(barrio=="Centro", 30000, ifelse(barrio=="Norte", 15000, 0)) +
+  rnorm(n, sd = 30000)
+
+mod_reducido <- lm(precio ~ metros + habitaciones + antiguedad)
+mod_completo <- lm(precio ~ metros + habitaciones + antiguedad + barrio)
+summary(mod_reducido)
+summary(mod_completo)
+
+
+
+anova(mod_reducido, mod_completo)
+AIC(mod_reducido, mod_completo)
+BIC(mod_reducido, mod_completo)
+```
+
+-   El **Test F** indica si agregar la variable *barrio* mejora el ajuste.
+-   AIC y BIC verifican si el modelo más complejo vale la pena.
+
+```{r}
+library(ggplot2)
+
+pred_df <- data.frame(
+precio_real = precio,
+pred_reducido = predict(mod_reducido),
+pred_completo = predict(mod_completo)
+)
+
+ggplot(pred_df, aes(x = pred_reducido, y = pred_completo)) +
+geom_point(alpha = 0.5) +
+geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+labs(title = "Comparación visual de predicciones",
+x = "Predicción modelo reducido",
+y = "Predicción modelo completo")
+
+```
+
+```{r}
+library(ggplot2)
+
+pred_df <- data.frame(
+  precio_real = precio,
+  reducido = predict(mod_reducido),
+  completo = predict(mod_completo)
+)
+
+ggplot(pred_df, aes(x = precio_real)) +
+  geom_point(aes(y = reducido), alpha = 0.4, color = "red") +
+  geom_point(aes(y = completo), alpha = 0.4, color = "blue") +
+  labs(title = "Predicciones vs valor real",
+       x = "Precio real",
+       y = "Predicción") +
+  theme_minimal()
+
+```
+
+La nube azul más cerca de la diagonal indica mejor modelo.
+
+## 2. Regresión logística
+
+En el ejemplo siguiente vamos a trabajar sobre el conjunto de datos default del paquete ISLR que contiene información sobre diez mil clientes. El objetivo aquí es predecir qué clientes incumplirán con su deuda de tarjeta de crédito.
+
+Las variables explicativas son si es o no estudiante (student), el saldo promedio (balance) que el cliente tiene pendiente en su tarjeta de crédito después de realizar su pago mensual y su ingreso (Income) y la variable a explicar (default) es un factor con niveles No y Sí que indica si el cliente incumplió su deuda.
+
+```{r}
+library('ISLR2')
+datos=Default
+head(datos)
+summary(datos)
+```
+
+Vamos hacer un modelo de regresión logística usando la función `glm()` para modelos lineales generalizados, una clase de modelos que generalizan los modelos lineales en los que se incluye el modelo logístico. Para ello especificamos el argumento `family = binomial`.
+
+```{r}
+modelo <- glm(default~., data = datos, family = binomial)
+summary(modelo)
+```
+
+Los valores Null deviance y Residual deviance corresponden a los residuos del modelo nulo sin predictor y al modelo completo, respectivamente. Los grados de libertad son iguales a cantidad de observaciones menos cantidad de parametros.
+
+Se puede obtener intervalos de confianza sobre los parametros:
+
+```{r}
+confint(object=modelo,level=0.9)
+```
+
+Según el modelo que elaboramos, el ser estudiante o no y el balance son los únicos predictores estadísticamente significativos. El coeficiente negativo para *student* en la regresión logística múltiple indica que, para un valor fijo de *balance* e *income*, un estudiante es menos propenso a incumplir que un no estudiante.
+
+En una regresión logística, el **modelo nulo** (*null model*) es el modelo más sencillo posible:\
+solo contiene un **intercepto** y **no incluye ninguna variable explicativa**. Su forma es $$\log\left( \frac{p}{1 - p} \right) = \beta_0 $$ donde $p$ es la probabilidad global de que la variable respuesta tome el valor 1 (por ejemplo, la probabilidad de default en el dataset *Default*).
+
+El modelo nulo asume que todas las observaciones tienen la misma probabilidad y no se usan covariables para distinguir entre individuos. Por lo tanto, el estimador de $p$ es simplemente la proporción de casos positivos $p=\frac{n_1}{n}$ donde $n_1$ es el número de observaciones con respuesta 1 y $n$ es el total de observaciones. El intercepto se obtiene de la manera siguiente: $n= 10000, n_1 = 333$ de donde $p = 0.0333$ por lo que $\hat{\beta}_0= \log\left(\frac{\hat{p}}{1-\hat{p}}\right)$ ce que toda persona tiene una probabilidad ≈ 3.3% de incumplir, sin tener en cuenta su `balance`, `income`, ni si es `student`.
+
+```{r}
+p_hat <- mean(datos$default == "Yes")
+beta0_hat <- log(p_hat / (1 - p_hat)) 
+beta0_hat
+```
+
+La null deviance corresponde al modelo nulo, que solo incluye un intercepto. En el dataset `Default` del paquete la probabilidad estimada de default es $\hat{p}=\frac{n_1}{n}=0.0333$
+
+La null deviance se calcula como: $\text{Null deviance} = -2 \left[ n_1 \log(\hat p) + n_0 \log(1 - \hat p) \right]$
+
+```{r}
+n1 <- sum(datos$default == "Yes")
+n0 <- sum(datos$default == "No")
+n <- n1 + n0
+p_hat <- n1 / n #Proba
+null_dev_manual <- -2 * (n1 * log(p_hat) + n0 * log(1 - p_hat)) 
+null_dev_manual
+```
+
+que da lo mismo que:
+
+```{r}
+mod_nulo <- glm(default ~ 1, data = datos, family = binomial)
+mod_nulo$null.deviance
+
+```
+
+La bondad de ajuste se mide mediante la desvianza del modelo y su relación a la desvianza del modelo nulo:
+
+```{r}
+anova(modelo, test='Chisq')
+```
+
+El p-valor rechaza la hipótesis nula de que nuestro modelo se asemeje a un modelo tan simple como el modelo nulo.
+
+Observemos que el coeficiente de la variable student es negativo.
+
+Qué significa?: **si dos personas tienen el mismo balance e income, la persona estudiante tiene *menor* probabilidad de default.**
+
+En el dataset:
+
+-   Los **estudiantes tienden a tener balances más altos** (cuentas más cargadas).
+
+-   Y el **balance es el predictor dominante** del default (fuertemente relacionado).
+
+Entonces:
+
+-   Sin ajustar por balance: los estudiantes parecen tener más default (coeficiente positivo).
+
+-   Ajustando por balance: a igual balance, los estudiantes defaultan *menos (*coeficiente negativo).
+
+Esto es exactamente la **paradoja de Simpson**: *una relación que es positiva en los promedios globales, se vuelve negativa cuando se controla por otras variables relevantes.* Este fenómeno ocurre cuando una variable (student) está correlacionada con otra variable fuerte (balance), generando conclusiones contradictorias si no se controlan las covariables.
+
+-   Los estudiantes defaultan más *porque tienden a tener balances más altos*.
+
+-   Pero **a igualdad de balance**, los estudiantes defaultan menos.
+
+-   Por eso el signo del coeficiente cambia entre el modelo simple (coef positivo) y el modelo múltiple (coef negativo).
+
+    ```{r}
+    mod1 <- glm(default ~ student, data = datos, family = binomial)
+    summary(mod1)
+
+    ```
+
+```{r}
+mod2 <- glm(default ~ balance + income + student, data = datos, family = binomial)
+summary(mod2)
+
+```
+
+```{r}
+ggplot(datos, aes(x = balance, y = as.numeric(default == "Yes"), color = student)) +
+geom_jitter(height = 0.02, alpha = 0.3) +
+geom_smooth(method = "glm", method.args = list(family = "binomial")) +
+labs(
+title = "Probabilidad de default según balance y condición de estudiante",
+y = "Probabilidad estimada",
+x = "Balance"
+)
+```
+
+-   A **igual balance**, los estudiantes tienen menor probabilidad.
+
+-   Pero el grupo de estudiantes tiene balances más altos en promedio,\
+    y esto **revierte** la comparación global.
+
+## 2.2 Reduccion en la desvianza del modelo
+
+```{r}
+datos <- Default
+
+mod_completo <- glm(default ~ balance + income + student,
+                    data = datos, family = binomial)
+
+mod_completo$deviance         # devianza residual
+mod_completo$df.residual      # grados de libertad residuales
+summary(mod_completo)      
+anova(mod_nulo, mod_completo, test="Chisq")
+
+```
+
+La devianza residual se define como: $D = -2 \left[ \ell(\hat{p}) - \ell_{\text{sat}} \right]$ donde $\ell(\hat{p})$ es la log-verosimilitud del modelo ajustado y $\ell_{\text{sat}}$ es la log-verosimilitud del modelo saturado (que vale 0). Toda desvianza es una medida relativa al modelo saturado.
+
+Para datos binarios ($y_i \in \{0,1\}$), la fórmula explícita utilizada por glm es: $D = 2 \sum_{i=1}^n \left[
+y_i \log\!\left( \frac{y_i}{\hat{p}_i} \right)
++
+(1-y_i)\log\!\left( \frac{1-y_i}{1-\hat{p}_i} \right)
+\right].$
+
+$D\geq 0$ , cuanto mayor es $D$ peor es el ajuste, si el modelo predice perfectamente ($\hat{p}_i = y_i$), entonces $D = 0$.
+
+-   La **null deviance** (modelo sin predictores) ≈ 2920.6;
+
+-   La **residual deviance** ≈ 1571.5 muestra cuánto error queda al usar `balance`, `income` y `student`.
+
+-   La gran reducción (≈ 1349) indica que los predictores, especialmente `balance`, mejoran mucho el ajuste. Esto se formaliza con `anova(mod_nulo, mod_completo, test="Chisq")`
+
+## 2.3 Otro ejemplo de regresion logística.
+
+Estos datos son de 100 pacientes a quienes le relevamos la edad (AGE) y si tiene o no una enfermedad coronaria (CHD): 1 si presenta la enfermedad, 0 si no.
+
+```{r}
+datos=read.table('AGECHD.csv',dec=',',sep=';',header=T) 
+summary(datos) 
+datos$CHD=as.factor(datos$CHD) 
+summary(datos)
+```
+
+```{r}
+modelo=glm(CHD~AGE,family=binomial,datos) 
+summary(modelo)
+
+
+```
+
+Los coeficientes $\beta_0$ y $\beta_1$ resultan ser significativos. El modelo es $ln(p/(1-p))=-5.30945+0.11092X$ y la probababilidad de padecer una enfermedad coronaria en función de la edad $X$ es $$p=\frac{1}{(1+e^{-5.30945+0.11092X})}$$
+
+Interpretamos el coeficiente $\beta_1=0.11092=ln(OR)$ de la siguiente manera : el $OR=e^{\beta_1}= 1.1173$ indica como aumenta el riesgo de padecer enfermedad coronaria al aumentar la edad de un año. Si la edad aumenta de 20 años este riesgo aumenta de $e^{20*\beta_1}=9,2$
+
+Una predicción:
+
+```{r}
+pp=predict(modelo,data.frame(AGE=36),type="response")
+```
+
+La bondad de ajuste se mide mediante la desvianza del modelo y su relación a la desvianza del modelo nulo:
+
+```{r}
+ anova(modelo, test='Chisq')
+```
+
+El p-valor rechaza la hipótesis nula de que nuestro modelo se asemeje a un modelo tan simple como el modelo nulo.
